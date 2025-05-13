@@ -75,15 +75,6 @@ init(HardwareInterface* hw, ros::NodeHandle& nh)
     return false;
   }
 
-  // Make sure compliance link is part of the robot chain
-  if(!Base::robotChainContains(m_compliance_ref_link))
-  {
-    ROS_ERROR_STREAM(m_compliance_ref_link << " is not part of the kinematic chain from "
-                                           << Base::m_robot_base_link << " to "
-                                           << Base::m_end_effector_link);
-    return false;
-  }
-
   // Make sure sensor wrenches are interpreted correctly
   ForceBase::setFtSensorReferenceFrame(m_compliance_ref_link);
 
@@ -123,9 +114,6 @@ template <class HardwareInterface>
 void CartesianComplianceController<HardwareInterface>::
 update(const ros::Time& time, const ros::Duration& period)
 {
-  // Synchronize the internal model and the real robot
-  Base::m_ik_solver->synchronizeJointPositions(Base::m_joint_handles);
-
   // Control the robot motion in such a way that the resulting net force
   // vanishes. This internal control needs some simulation time steps.
   for (int i = 0; i < Base::m_iterations; ++i)
@@ -142,6 +130,21 @@ update(const ros::Time& time, const ros::Duration& period)
   }
 
   // Write final commands to the hardware interface
+  Base::writeJointControlCmds();
+}
+
+template <>
+void CartesianComplianceController<hardware_interface::VelocityJointInterface>::
+update(const ros::Time& time, const ros::Duration& period)
+{
+  // Simulate only one step forward.
+  // The constant simulation time adds to solver stability.
+  ros::Duration internal_period(0.02);
+
+  ctrl::Vector6D error = computeComplianceError();
+
+  Base::computeJointControlCmds(error,internal_period);
+
   Base::writeJointControlCmds();
 }
 

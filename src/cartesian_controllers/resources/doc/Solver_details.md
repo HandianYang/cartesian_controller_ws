@@ -20,9 +20,10 @@ Each controller computes an error with respect to the current state.
 Users configure the responsiveness of the controller to that error with a set of gains.
 The error_scale is a convenient option to post-multiply the error on all dimensions uniformly.
 This is handy for testing parameter ranges with the slider in dynamic reconfigure.
-All controllers use the same virtual model to map this Cartesian error to joint motion.
-
-There are two different compile-time interfaces, over which the robots get actuated: `PositionJointInterfaces` and `VelocityJointInterfaces`.
+All controllers use the same virtual model to map this Cartesian error to joint accelerations, which is then double time integrated.
+There are two different mechanisms how those joint values get send to the robot.
+The joint position interface works in an open-loop manner, and allows for internal iterations, using feedback from the virtual robot model.
+The joint velocity interface takes the current robot state into account, and does not provide internal iterations.
 
 ## Configuration
 ### Controller gains
@@ -39,44 +40,17 @@ Unfortunately, there won't exist ideal parameters for every use case and robot.
 So, for your specific application, you will be tweaking the PD gains at some point.
 
 ### Solver parameters
-The common solver has three parameters:
-* **iterations**: The number of internally simulated cycles per control cycle.
-  Increasing this number will give the solver more iterations to approach the given target.
-  A value of `10` is a good default for the `CartesianMotionController` and the `CartesianComplianceController`.
-  The higher this value, the more does the controller behave like an ideal *inverse kinematics* solver.
-  This parameter has no effect for the `CartesianForceController`.
+The common solver has two parameters:
+* iterations: The number of forward simulated steps for each control cycle.
+  Increasing this number will give the solver more iterations to decrease the
+  error. However, this mostly makes sense for the CartesianMotionController,
+  where increasing means switching from a smoothing controller to a fast and
+  exact inverse kinematics solver.
 
-* **error_scale**: An additional multiplicative factor that uniformly scales the
+* error_scale: An additional multiplicative factor that uniformly scales the
   6-dimensional PD controlled error (both translation and rotation alike).
   Use this parameter to find the right range
   for your PD gains. It's handy to use the slider in dynamic reconfigure for this.
-
-* **publish_state_feedback**: A boolean flag whether to publish the
-  controller-internal state. This is helpful for comparing the controllers'
-  feedback against the given target reference during parameter tweaking. If
-  `true`, each controller will publish its end-effector pose and twist on the local topics `current_pose` and
-  `current_twist`, respectively. You can easily find them in a sourced terminal with
-  ```bash
-  rostopic list | grep current
-  ```
-
-All solver parameters can be set online via `dynamic_reconfigure` in the controllers'
-`solver` namespace, or at startup via the controller's `.yaml` configuration
-file, e.g. with
-```yaml
-my_cartesian_controller:
-    # Type, link and joints specification here
-    # ...
-
-    solver:
-        error_scale: 0.5
-        iterations: 5
-        publish_state_feedback: True
-
-    # Further specification
-    # ...
-
-```
 
 ## Performance
 As a default, please build the cartesian_controllers in release mode:
@@ -84,8 +58,6 @@ As a default, please build the cartesian_controllers in release mode:
 ```bash
 catkin_make -DCMAKE_BUILD_TYPE=Release
 ```
-If no build type is specified, the controller is automatically built in release mode.
-
 The forward dynamics implementation heavily relies on
 orocos_kinematics_dynamics (KDL), which use Eigen for linear algebra.
 Building in Release mode can give you a 10-times speed-up, and makes sure that

@@ -49,12 +49,15 @@
 namespace joint_to_cartesian_controller
 {
 
-JointControllerAdapter::JointControllerAdapter(std::vector<hardware_interface::JointStateHandle>& state_handles, ros::NodeHandle& nh)
-  : m_joint_state_handles(state_handles)
+JointControllerAdapter::JointControllerAdapter()
 {
-  for (size_t i = 0; i < m_joint_state_handles.size(); ++i)
+}
+
+bool JointControllerAdapter::init(const std::vector<hardware_interface::JointStateHandle>& state_handles, ros::NodeHandle& nh)
+{
+  for (size_t i = 0; i < state_handles.size(); ++i)
   {
-    m_joint_names.push_back(m_joint_state_handles[i].getName());
+    m_joint_names.push_back(state_handles[i].getName());
   }
   m_number_joints = m_joint_names.size();
   m_cmd.resize(m_number_joints);
@@ -68,19 +71,19 @@ JointControllerAdapter::JointControllerAdapter(std::vector<hardware_interface::J
   // Register external state_handles
   for (size_t i = 0; i < m_number_joints; ++i)
   {
-    m_state_interface.registerHandle(m_joint_state_handles[i]);
+    m_state_interface.registerHandle(state_handles[i]);
   }
   registerInterface(&m_state_interface);
 
   // Initialize and register handles to the actuators
   for (size_t i = 0; i < m_number_joints; ++i)
   {
-    m_joint_cmd_handles.push_back(
+    m_joint_handles.push_back(
         hardware_interface::JointHandle(
           m_state_interface.getHandle(m_joint_names[i]),
           &m_cmd[i]));
 
-    m_pos_interface.registerHandle(m_joint_cmd_handles[i]);
+    m_pos_interface.registerHandle(m_joint_handles[i]);
   }
   registerInterface(&m_pos_interface);
 
@@ -101,7 +104,7 @@ JointControllerAdapter::JointControllerAdapter(std::vector<hardware_interface::J
   {
     m_limits_handles.push_back(
         joint_limits_interface::PositionJointSoftLimitsHandle(
-          m_joint_cmd_handles[i],
+          m_joint_handles[i],
           limits,
           soft_limits // deliberately empty
           ));
@@ -111,25 +114,23 @@ JointControllerAdapter::JointControllerAdapter(std::vector<hardware_interface::J
   {
     m_limits_interface.registerHandle(m_limits_handles[i]);
   }
+
+  return true;
 }
 
 JointControllerAdapter::~JointControllerAdapter()
 {
 }
 
-void JointControllerAdapter::read()
-{
-  // Safe default comands
-  for (size_t i = 0; i < m_number_joints; ++i)
-  {
-    m_cmd[i] = m_joint_state_handles[i].getPosition();
-  }
-}
-
 void JointControllerAdapter::write(KDL::JntArray& positions)
 {
+  if (static_cast<size_t>(positions.data.size()) != m_cmd.size())
+  {
+    throw std::runtime_error("Joint number mismatch!");
+  }
+
   // Fill positions for forward kinematics
-  for (size_t i = 0; i < m_number_joints; ++i)
+  for (size_t i = 0; i < m_cmd.size(); ++i)
   {
     positions(i) = m_cmd[i];
   }

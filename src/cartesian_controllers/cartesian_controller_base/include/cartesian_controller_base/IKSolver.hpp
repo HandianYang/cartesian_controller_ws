@@ -28,73 +28,53 @@
 // POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////
 
-
 //-----------------------------------------------------------------------------
-/*!\file    PDController.cpp
+/*!\file    IKSolver.hpp
  *
  * \author  Stefan Scherzinger <scherzin@fzi.de>
- * \date    2019/10/16
+ * \date    2019/10/09
  *
  */
 //-----------------------------------------------------------------------------
 
-#include <cartesian_controller_base/PDController.h>
 
-namespace cartesian_controller_base
-{
+// this package
+#include <cartesian_controller_base/IKSolver.h>
 
-PDController::PDController()
-  : m_last_p_error(0.0)
+// ROS control
+#include <hardware_interface/joint_command_interface.h>
+
+namespace cartesian_controller_base{
+
+template <> inline
+void IKSolver::updateKinematics<hardware_interface::PositionJointInterface>(
+    const std::vector<hardware_interface::JointHandle>&)
 {
+  // Keep feed forward simulation running
+  m_last_positions = m_current_positions;
+
+  // Pose w. r. t. base
+  m_fk_pos_solver->JntToCart(m_current_positions,m_end_effector_pose);
+
+  // Absolute velocity w. r. t. base
+  KDL::FrameVel vel;
+  m_fk_vel_solver->JntToCart(KDL::JntArrayVel(m_current_positions,m_current_velocities),vel);
+  m_end_effector_vel[0] = vel.deriv().vel.x();
+  m_end_effector_vel[1] = vel.deriv().vel.y();
+  m_end_effector_vel[2] = vel.deriv().vel.z();
+  m_end_effector_vel[3] = vel.deriv().rot.x();
+  m_end_effector_vel[4] = vel.deriv().rot.y();
+  m_end_effector_vel[5] = vel.deriv().rot.z();
 }
 
-PDController::PDController(const PDController& other)
-  : m_last_p_error(other.m_last_p_error)
-  , m_dyn_conf_server(other.m_dyn_conf_server)
+template <> inline
+void IKSolver::updateKinematics<hardware_interface::VelocityJointInterface>(
+    const std::vector<hardware_interface::JointHandle>& joint_handles)
 {
-  // Copy constructor would bind non-const ref
-  // to const, so use copy assignment operator.
-  m_gains = other.m_gains;
-}
+  // Reset internal simulation with real robot state
+  setStartState(joint_handles);
 
-PDController::~PDController()
-{
-}
-
-
-void PDController::init(const std::string& name_space)
-{
-  // Connect dynamic reconfigure and overwrite the default values with values
-  // on the parameter server. This is done automatically if parameters with
-  // the according names exist.
-  m_callback_type = boost::bind(
-      &PDController::dynamicReconfigureCallback, this, _1, _2);
-
-  m_dyn_conf_server.reset(
-      new dynamic_reconfigure::Server<PDGainsConfig>(
-        ros::NodeHandle(name_space)));
-  m_dyn_conf_server->setCallback(m_callback_type);
-
-}
-
-
-double PDController::operator()(const double& error, const ros::Duration& period)
-{
-  if (period == ros::Duration(0.0))
-  {
-    return 0.0;
-  }
-
-  PDGains gains(*m_gains.readFromRT());
-  double result = gains.m_p * error + gains.m_d * (error - m_last_p_error) / period.toSec();
-
-  m_last_p_error = error;
-  return result;
-}
-
-void PDController::dynamicReconfigureCallback(PDGainsConfig& config, uint32_t level)
-{
-  m_gains.writeFromNonRT(PDGains(config.p, config.d));
+  updateKinematics<hardware_interface::PositionJointInterface>(joint_handles);
 }
 
 }

@@ -43,6 +43,7 @@
 // other
 #include <map>
 #include <sstream>
+#include <boost/algorithm/clamp.hpp>
 #include <eigen_conversions/eigen_kdl.h>
 
 // KDL
@@ -81,6 +82,7 @@ PLUGINLIB_EXPORT_CLASS(cartesian_controller_base::ForwardDynamicsSolver, cartesi
 namespace cartesian_controller_base{
 
   ForwardDynamicsSolver::ForwardDynamicsSolver()
+    : m_min(0.01)
   {
   }
 
@@ -91,8 +93,7 @@ namespace cartesian_controller_base{
         const ctrl::Vector6D& net_force)
   {
 
-    // Compute joint space inertia matrix with actualized link masses
-    buildGenericModel();
+    // Compute joint space inertia matrix
     m_jnt_space_inertia_solver->JntToMass(m_current_positions,m_jnt_space_inertia);
 
     // Compute joint jacobian
@@ -101,11 +102,11 @@ namespace cartesian_controller_base{
     // Compute joint accelerations according to: \f$ \ddot{q} = H^{-1} ( J^T f) \f$
     m_current_accelerations.data = m_jnt_space_inertia.data.inverse() * m_jnt_jacobian.data.transpose() * net_force;
 
-    // Numerical time integration with the Euler forward method
-    m_current_positions.data = m_last_positions.data + m_last_velocities.data * period.toSec();
-    m_current_velocities.data = m_last_velocities.data + m_current_accelerations.data * period.toSec();
-    m_current_velocities.data *= 0.9;  // 10 % global damping against unwanted null space motion.
-                                       // Will cause exponential slow-down without input.
+    // Integrate once, starting with zero motion
+    m_current_velocities.data = 0.5 * m_current_accelerations.data * period.toSec();
+
+    // Integrate twice, starting with zero motion
+    m_current_positions.data = m_last_positions.data + 0.5 * m_current_velocities.data * period.toSec();
 
     // Make sure positions stay in allowed margins
     applyJointLimits();
@@ -122,10 +123,6 @@ namespace cartesian_controller_base{
       // consequence, the robot will move very slowly.
     }
     control_cmd.time_from_start = period; // valid for this duration
-
-    // Update for the next cycle
-    m_last_positions = m_current_positions;
-    m_last_velocities = m_current_velocities;
 
     return control_cmd;
   }
@@ -153,10 +150,8 @@ namespace cartesian_controller_base{
     // Connect dynamic reconfigure and overwrite the default values with values
     // on the parameter server. This is done automatically if parameters with
     // the according names exist.
-    m_callback_type = std::bind(&ForwardDynamicsSolver::dynamicReconfigureCallback,
-                                this,
-                                std::placeholders::_1,
-                                std::placeholders::_2);
+    m_callback_type = boost::bind(
+        &ForwardDynamicsSolver::dynamicReconfigureCallback, this, _1, _2);
 
     m_dyn_conf_server.reset(
         new dynamic_reconfigure::Server<IKConfig>(

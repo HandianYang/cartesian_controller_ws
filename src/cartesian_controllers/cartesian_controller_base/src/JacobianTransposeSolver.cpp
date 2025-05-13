@@ -43,6 +43,9 @@
 // Pluginlib
 #include <pluginlib/class_list_macros.h>
 
+// other
+#include <boost/algorithm/clamp.hpp>
+
 /**
  * \class cartesian_controller_base::JacobianTransposeSolver 
  *
@@ -102,9 +105,6 @@ namespace cartesian_controller_base{
       // consequence, the robot will move very slowly.
     }
     control_cmd.time_from_start = period; // valid for this duration
-
-    // Update for the next cycle
-    m_last_positions = m_current_positions;
 
     return control_cmd;
   }

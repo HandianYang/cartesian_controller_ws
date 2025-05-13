@@ -91,6 +91,7 @@ init(HardwareInterface* hw, ros::NodeHandle& nh)
   std::string robot_description;
   urdf::Model robot_model;
   KDL::Tree   robot_tree;
+  KDL::Chain  robot_chain;
 
   // Get controller specific configuration
   if (!ros::param::search("robot_description", robot_description))
@@ -127,7 +128,7 @@ init(HardwareInterface* hw, ros::NodeHandle& nh)
     ROS_ERROR_STREAM(error);
     throw std::runtime_error(error);
   }
-  if (!robot_tree.getChain(m_robot_base_link,m_end_effector_link,m_robot_chain))
+  if (!robot_tree.getChain(m_robot_base_link,m_end_effector_link,robot_chain))
   {
     const std::string error = ""
       "Failed to parse robot chain from urdf model. "
@@ -177,22 +178,13 @@ init(HardwareInterface* hw, ros::NodeHandle& nh)
   }
 
   // Initialize solvers
-  m_ik_solver->init(nh, m_robot_chain,upper_pos_limits,lower_pos_limits);
+  m_ik_solver->init(nh, robot_chain,upper_pos_limits,lower_pos_limits);
   KDL::Tree tmp("not_relevant");
-  tmp.addChain(m_robot_chain,"not_relevant");
+  tmp.addChain(robot_chain,"not_relevant");
   m_forward_kinematics_solver.reset(new KDL::TreeFkSolverPos_recursive(tmp));
 
   // Initialize Cartesian pd controllers
   m_spatial_controller.init(nh);
-
-  // Controller-internal state publishing
-  m_feedback_pose_publisher =
-    std::make_shared<realtime_tools::RealtimePublisher<geometry_msgs::PoseStamped> >(
-      nh, "current_pose", 3);
-
-  m_feedback_twist_publisher =
-    std::make_shared<realtime_tools::RealtimePublisher<geometry_msgs::TwistStamped> >(
-      nh, "current_twist", 3);
 
   // Connect dynamic reconfigure and overwrite the default values with values
   // on the parameter server. This is done automatically if parameters with
@@ -209,6 +201,9 @@ init(HardwareInterface* hw, ros::NodeHandle& nh)
 
   m_already_initialized = true;
 
+  // Start with normal ROS control behavior
+  m_paused = false;
+
   return true;
 }
 
@@ -218,20 +213,35 @@ starting(const ros::Time& time)
 {
   // Copy joint state to internal simulation
   m_ik_solver->setStartState(m_joint_handles);
-  m_ik_solver->updateKinematics();
+  m_ik_solver->updateKinematics<HardwareInterface>(m_joint_handles);
+}
 
-  // Provide safe command buffers with starting where we are
-  computeJointControlCmds(ctrl::Vector6D::Zero(), ros::Duration(0));
-  writeJointControlCmds();
+template <class HardwareInterface>
+void CartesianControllerBase<HardwareInterface>::
+pause(const ros::Time& time)
+{
+  m_paused = true;
+}
+
+template <class HardwareInterface>
+bool CartesianControllerBase<HardwareInterface>::
+resume(const ros::Time& time)
+{
+  m_paused = false;
+  return true;
 }
 
 template <>
 void CartesianControllerBase<hardware_interface::PositionJointInterface>::
 writeJointControlCmds()
 {
-  if (m_publish_state_feedback)
+  // Don't update position commands when paused.
+  // Note: CartesianMotionControllers don't take any feedback from the joint
+  // handles. These controllers will drift if the target frame they are
+  // following isn't also paused.
+  if (m_paused)
   {
-    publishStateFeedback();
+    return;
   }
 
   // Take position commands
@@ -245,9 +255,13 @@ template <>
 void CartesianControllerBase<hardware_interface::VelocityJointInterface>::
 writeJointControlCmds()
 {
-  if (m_publish_state_feedback)
+  // Don't update velocity commands when paused.
+  // Note: CartesianMotionControllers don't take any feedback from the joint
+  // handles. These controllers will drift if the target frame they are
+  // following isn't also paused.
+  if (m_paused)
   {
-    publishStateFeedback();
+    return;
   }
 
   // Take velocity commands
@@ -261,6 +275,11 @@ template <class HardwareInterface>
 void CartesianControllerBase<HardwareInterface>::
 computeJointControlCmds(const ctrl::Vector6D& error, const ros::Duration& period)
 {
+  if (m_paused)
+  {
+    return;
+  }
+
   // PD controlled system input
   m_cartesian_input = m_error_scale * m_spatial_controller(error,period);
 
@@ -268,8 +287,8 @@ computeJointControlCmds(const ctrl::Vector6D& error, const ros::Duration& period
   m_simulated_joint_motion = m_ik_solver->getJointControlCmds(
       period,
       m_cartesian_input);
-
-  m_ik_solver->updateKinematics();
+  // Update according to control policy for next cycle
+  m_ik_solver->updateKinematics<HardwareInterface>(m_joint_handles);
 }
 
 template <class HardwareInterface>
@@ -367,51 +386,10 @@ displayInTipLink(const ctrl::Vector6D& vector, const std::string& to)
 
 template <class HardwareInterface>
 void CartesianControllerBase<HardwareInterface>::
-publishStateFeedback()
-{
-  // End-effector pose
-  auto pose = m_ik_solver->getEndEffectorPose();
-  if (m_feedback_pose_publisher->trylock()){
-    m_feedback_pose_publisher->msg_.header.stamp = ros::Time::now();
-    m_feedback_pose_publisher->msg_.header.frame_id = m_robot_base_link;
-    m_feedback_pose_publisher->msg_.pose.position.x = pose.p.x();
-    m_feedback_pose_publisher->msg_.pose.position.y = pose.p.y();
-    m_feedback_pose_publisher->msg_.pose.position.z = pose.p.z();
-
-    pose.M.GetQuaternion(
-        m_feedback_pose_publisher->msg_.pose.orientation.x,
-        m_feedback_pose_publisher->msg_.pose.orientation.y,
-        m_feedback_pose_publisher->msg_.pose.orientation.z,
-        m_feedback_pose_publisher->msg_.pose.orientation.w
-        );
-
-    m_feedback_pose_publisher->unlockAndPublish();
-  }
-
-  // End-effector twist
-  auto twist = m_ik_solver->getEndEffectorVel();
-  if (m_feedback_twist_publisher->trylock()){
-    m_feedback_twist_publisher->msg_.header.stamp = ros::Time::now();
-    m_feedback_twist_publisher->msg_.header.frame_id = m_robot_base_link;
-    m_feedback_twist_publisher->msg_.twist.linear.x = twist[0];
-    m_feedback_twist_publisher->msg_.twist.linear.y = twist[1];
-    m_feedback_twist_publisher->msg_.twist.linear.z = twist[2];
-    m_feedback_twist_publisher->msg_.twist.angular.x = twist[3];
-    m_feedback_twist_publisher->msg_.twist.angular.y = twist[4];
-    m_feedback_twist_publisher->msg_.twist.angular.z = twist[5];
-
-    m_feedback_twist_publisher->unlockAndPublish();
-  }
-
-}
-
-template <class HardwareInterface>
-void CartesianControllerBase<HardwareInterface>::
 dynamicReconfigureCallback(ControllerConfig& config, uint32_t level)
 {
   m_error_scale = config.error_scale;
   m_iterations = config.iterations;
-  m_publish_state_feedback = config.publish_state_feedback;
 }
 
 } // namespace

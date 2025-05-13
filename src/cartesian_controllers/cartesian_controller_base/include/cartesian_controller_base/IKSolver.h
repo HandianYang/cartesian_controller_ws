@@ -126,17 +126,6 @@ class IKSolver
     bool setStartState(const std::vector<hardware_interface::JointHandle>& joint_handles);
 
     /**
-     * @brief Synchronize joint positions with the real robot
-     *
-     * Call this periodically in the controller's update() function.
-     * The internal model's joint velocity is not sychronized. Derived IK
-     * solvers should implement how to keep or reset those values.
-     *
-     * @param joint_handles Read handles to the joints.
-     */
-    void synchronizeJointPositions(const std::vector<hardware_interface::JointHandle>& joint_handles);
-
-    /**
      * @brief Initialize the solver
      *
      * @param nh A node handle for namespace-local parameter management
@@ -154,10 +143,22 @@ class IKSolver
     /**
      * @brief Update the robot kinematics of the solver
      *
-     * Call this periodically to update the internal simulation's forward
-     * kinematics.
+     * This template has two specializations for two distinct controller
+     * policies, depending on the hardware interface used:
+     *
+     * 1) PositionJointInterface: The solver's internal simulation is continued
+     * on each call without taking the real robot state into account.
+     *
+     * 2) VelocityJointInterface: The internal simulation is updated with the
+     * real robot state. On each call, the solver starts with its internal
+     * simulation in sync with the real robot.
+     *
+     * @tparam HardwareInterface
+     * @param joint_handles
      */
-    void updateKinematics();
+    template <class HardwareInterface>
+    void updateKinematics(
+        const std::vector<hardware_interface::JointHandle>& joint_handles);
 
   protected:
 
@@ -182,7 +183,6 @@ class IKSolver
     KDL::JntArray m_current_velocities;
     KDL::JntArray m_current_accelerations;
     KDL::JntArray m_last_positions;
-    KDL::JntArray m_last_velocities;
 
     // Joint limits
     KDL::JntArray m_upper_pos_limits;
@@ -199,5 +199,7 @@ class IKSolver
 
 
 } // namespace
+
+#include <cartesian_controller_base/IKSolver.hpp>
 
 #endif

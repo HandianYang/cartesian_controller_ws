@@ -44,9 +44,6 @@
 #include <ros/node_handle.h>
 #include <trajectory_msgs/JointTrajectoryPoint.h>
 #include <geometry_msgs/WrenchStamped.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TwistStamped.h>
-#include <realtime_tools/realtime_publisher.h>
 
 // ros_controls
 #include <controller_interface/controller.h>
@@ -95,6 +92,11 @@ class CartesianControllerBase : public controller_interface::Controller<Hardware
     virtual bool init(HardwareInterface* hw, ros::NodeHandle& nh);
 
     virtual void starting(const ros::Time& time);
+
+    void pause(const ros::Time& time);
+
+    bool resume(const ros::Time& time);
+
 
   protected:
     /**
@@ -147,27 +149,6 @@ class CartesianControllerBase : public controller_interface::Controller<Hardware
      */
     ctrl::Vector6D displayInTipLink(const ctrl::Vector6D& vector, const std::string& to);
 
-    /**
-     * @brief Check if specified links are part of the robot chain
-     *
-     * @param s Link to check for existence
-     *
-     * @return True if existent, false otherwise
-     */
-    bool robotChainContains(const std::string& s)
-    {
-      for (const auto& segment : this->m_robot_chain.segments)
-      {
-        if (segment.getName() == s)
-        {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    KDL::Chain m_robot_chain;
-
     std::shared_ptr<KDL::TreeFkSolverPos_recursive> m_forward_kinematics_solver;
 
     /**
@@ -179,27 +160,11 @@ class CartesianControllerBase : public controller_interface::Controller<Hardware
     std::string m_end_effector_link;
     std::string m_robot_base_link;
 
+    bool m_paused;
     int m_iterations;
-    std::vector<hardware_interface::JointHandle>      m_joint_handles;
-
-    /**
-     * Whether or not to publish the controller's current end-effector pose and
-     * twist.
-     */
-    std::atomic<bool> m_publish_state_feedback = false;
-
-    /**
-     * @brief Publish the controller's end-effector pose and twist
-     *
-     * The data are w.r.t. the specified robot base link.
-     * If this function is called after `computeJointControlCmds()` has
-     * been called, then the controller's internal state represents the state
-     * right after the error computation, and corresponds to the new target
-     * state that will be send to the actuators in this control cycle.
-     */
-    void publishStateFeedback();
 
   private:
+    std::vector<hardware_interface::JointHandle>      m_joint_handles;
     std::vector<std::string>                          m_joint_names;
     trajectory_msgs::JointTrajectoryPoint             m_simulated_joint_motion;
     SpatialPDController                              m_spatial_controller;
@@ -216,12 +181,6 @@ class CartesianControllerBase : public controller_interface::Controller<Hardware
 
     std::shared_ptr<dynamic_reconfigure::Server<ControllerConfig> > m_dyn_conf_server;
     dynamic_reconfigure::Server<ControllerConfig>::CallbackType m_callback_type;
-
-    realtime_tools::RealtimePublisherSharedPtr<geometry_msgs::PoseStamped>
-      m_feedback_pose_publisher;
-    realtime_tools::RealtimePublisherSharedPtr<geometry_msgs::TwistStamped>
-      m_feedback_twist_publisher;
-
 };
 
 }

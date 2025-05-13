@@ -11,7 +11,8 @@
 
   <!-- One license tag required, multiple allowed, one license per tag -->
   <!-- Commonly used license strings: -->
-  <license>BSD-3-Clause</license>
+  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
+  <license>BSD</license>
 
 
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
@@ -41,8 +42,6 @@
   <run_depend>ros_control_boilerplate</run_depend>
   <run_depend>controller_manager</run_depend>
   <run_depend>robot_state_publisher</run_depend>
-  <run_depend>cartesian_controllers</run_depend>
-  <run_depend>cartesian_controller_handles</run_depend>
 
   <!-- Use test_depend for packages you need only for testing: -->
   <!--   <test_depend>gtest</test_depend> -->

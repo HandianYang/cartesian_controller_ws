@@ -43,7 +43,7 @@
 // other
 #include <map>
 #include <sstream>
-#include <algorithm>
+#include <boost/algorithm/clamp.hpp>
 #include <eigen_conversions/eigen_kdl.h>
 
 // KDL
@@ -87,21 +87,9 @@ namespace cartesian_controller_base{
       m_current_positions(i)      = joint_handles[i].getPosition();
       m_current_velocities(i)     = joint_handles[i].getVelocity();
       m_current_accelerations(i)  = 0.0;
-
       m_last_positions(i)         = m_current_positions(i);
-      m_last_velocities(i)        = m_current_velocities(i);
     }
     return true;
-  }
-
-
-  void IKSolver::synchronizeJointPositions(const std::vector<hardware_interface::JointHandle>& joint_handles)
-  {
-    for (size_t i = 0; i < joint_handles.size(); ++i)
-    {
-      m_current_positions(i) = joint_handles[i].getPosition();
-      m_last_positions(i)    = m_current_positions(i);
-    }
   }
 
 
@@ -117,7 +105,6 @@ namespace cartesian_controller_base{
     m_current_velocities.data    = ctrl::VectorND::Zero(m_number_joints);
     m_current_accelerations.data = ctrl::VectorND::Zero(m_number_joints);
     m_last_positions.data        = ctrl::VectorND::Zero(m_number_joints);
-    m_last_velocities.data       = ctrl::VectorND::Zero(m_number_joints);
     m_upper_pos_limits           = upper_pos_limits;
     m_lower_pos_limits           = lower_pos_limits;
 
@@ -126,22 +113,6 @@ namespace cartesian_controller_base{
     m_fk_vel_solver.reset(new KDL::ChainFkSolverVel_recursive(m_chain));
 
     return true;
-  }
-
-  void IKSolver::updateKinematics()
-  {
-    // Pose w. r. t. base
-    m_fk_pos_solver->JntToCart(m_current_positions,m_end_effector_pose);
-
-    // Absolute velocity w. r. t. base
-    KDL::FrameVel vel;
-    m_fk_vel_solver->JntToCart(KDL::JntArrayVel(m_current_positions,m_current_velocities),vel);
-    m_end_effector_vel[0] = vel.deriv().vel.x();
-    m_end_effector_vel[1] = vel.deriv().vel.y();
-    m_end_effector_vel[2] = vel.deriv().vel.z();
-    m_end_effector_vel[3] = vel.deriv().rot.x();
-    m_end_effector_vel[4] = vel.deriv().rot.y();
-    m_end_effector_vel[5] = vel.deriv().rot.z();
   }
 
   void IKSolver::applyJointLimits()
@@ -153,7 +124,7 @@ namespace cartesian_controller_base{
         // Joint marked as continuous.
         continue;
       }
-      m_current_positions(i) = std::clamp(
+      m_current_positions(i) = boost::algorithm::clamp(
           m_current_positions(i),m_lower_pos_limits(i),m_upper_pos_limits(i));
     }
   }

@@ -46,6 +46,7 @@
 
 // Other
 #include <algorithm>
+#include <cmath>
 
 namespace cartesian_force_controller
 {
@@ -69,21 +70,12 @@ init(HardwareInterface* hw, ros::NodeHandle& nh)
     return false;
   }
 
-  // Make sure sensor link is part of the robot chain
-  if(!Base::robotChainContains(m_ft_sensor_ref_link))
-  {
-    ROS_ERROR_STREAM(m_ft_sensor_ref_link << " is not part of the kinematic chain from "
-                                           << Base::m_robot_base_link << " to "
-                                           << Base::m_end_effector_link);
-    return false;
-  }
-
   // Make sure sensor wrenches are interpreted correctly
   setFtSensorReferenceFrame(Base::m_end_effector_link);
 
   m_signal_taring_server = nh.advertiseService("signal_taring",&CartesianForceController<HardwareInterface>::signalTaringCallback,this);
   m_target_wrench_subscriber = nh.subscribe("target_wrench",2,&CartesianForceController<HardwareInterface>::targetWrenchCallback,this);
-  m_ft_sensor_wrench_subscriber = nh.subscribe("ft_sensor_wrench",2,&CartesianForceController<HardwareInterface>::ftSensorWrenchCallback,this);
+  m_ft_sensor_wrench_subscriber = nh.subscribe("/ft_sensor_wrench",2,&CartesianForceController<HardwareInterface>::ftSensorWrenchCallback,this);
 
   // Initialize tool and gravity compensation
   std::map<std::string, double> gravity;
@@ -153,21 +145,37 @@ template <class HardwareInterface>
 void CartesianForceController<HardwareInterface>::
 update(const ros::Time& time, const ros::Duration& period)
 {
-  // Synchronize the internal model and the real robot
-  Base::m_ik_solver->synchronizeJointPositions(Base::m_joint_handles);
-
   // Control the robot motion in such a way that the resulting net force
-  // vanishes.  The internal 'simulation time' is deliberately independent of
-  // the outer control cycle.
-  ros::Duration internal_period(0.02);
+  // vanishes. This internal control needs some simulation time steps.
+  for (int i = 0; i < Base::m_iterations; ++i)
+  {
+    // The internal 'simulation time' is deliberately independent of the outer
+    // control cycle.
+    ros::Duration internal_period(0.02);
 
-  // Compute the net force
-  ctrl::Vector6D error = computeForceError();
+    // Compute the net force
+    ctrl::Vector6D error = computeForceError();
 
-  // Turn Cartesian error into joint motion
-  Base::computeJointControlCmds(error,internal_period);
+    // Turn Cartesian error into joint motion
+    Base::computeJointControlCmds(error,internal_period);
+  }
 
   // Write final commands to the hardware interface
+  Base::writeJointControlCmds();
+}
+
+template <>
+void CartesianForceController<hardware_interface::VelocityJointInterface>::
+update(const ros::Time& time, const ros::Duration& period)
+{
+  // Simulate only one step forward.
+  // The constant simulation time adds to solver stability.
+  ros::Duration internal_period(0.02);
+
+  ctrl::Vector6D error = computeForceError();
+
+  Base::computeJointControlCmds(error,internal_period);
+
   Base::writeJointControlCmds();
 }
 

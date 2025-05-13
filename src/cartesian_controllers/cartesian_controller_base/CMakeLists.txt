@@ -7,11 +7,6 @@ add_compile_options(-std=c++17)
 set(ADDITIONAL_COMPILE_OPTIONS -Wall -Wextra -Wpedantic -Wno-unused-parameter)
 add_compile_options(${ADDITIONAL_COMPILE_OPTIONS})
 
-# Sets build type to "Release" in case no build type has not been set before
-if(NOT CMAKE_BUILD_TYPE) 
-  set(CMAKE_BUILD_TYPE Release)
-endif(NOT CMAKE_BUILD_TYPE)
-
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -150,11 +145,13 @@ add_library(${PROJECT_NAME}
   include/cartesian_controller_base/Utility.h
   src/IKSolver.cpp
   include/cartesian_controller_base/IKSolver.h
+  include/cartesian_controller_base/IKSolver.hpp
 )
 
 add_library(ik_solvers
   src/IKSolver.cpp
   include/cartesian_controller_base/IKSolver.h
+  include/cartesian_controller_base/IKSolver.hpp
   src/ForwardDynamicsSolver.cpp
   include/cartesian_controller_base/ForwardDynamicsSolver.h
   src/JacobianTransposeSolver.cpp

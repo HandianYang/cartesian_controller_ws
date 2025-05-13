@@ -135,7 +135,7 @@ class ForwardDynamicsSolver : public IKSolver
     KDL::JntSpaceInertiaMatrix                  m_jnt_space_inertia;
 
     // IK solver specific dynamic reconfigure
-    std::atomic<double> m_min = 0.1;
+    double m_min;
     typedef cartesian_controller_base::ForwardDynamicsSolverConfig
       IKConfig;
 

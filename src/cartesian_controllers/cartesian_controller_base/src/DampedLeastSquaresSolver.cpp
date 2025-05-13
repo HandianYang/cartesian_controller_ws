@@ -43,6 +43,9 @@
 // Pluginlib
 #include <pluginlib/class_list_macros.h>
 
+// other
+#include <boost/algorithm/clamp.hpp>
+
 /**
  * \class cartesian_controller_base::DampedLeastSquaresSolver 
  *
@@ -112,9 +115,6 @@ namespace cartesian_controller_base{
     }
     control_cmd.time_from_start = period; // valid for this duration
 
-    // Update for the next cycle
-    m_last_positions = m_current_positions;
-
     return control_cmd;
   }
 
@@ -131,10 +131,8 @@ namespace cartesian_controller_base{
     // Connect dynamic reconfigure and overwrite the default values with values
     // on the parameter server. This is done automatically if parameters with
     // the according names exist.
-    m_callback_type = std::bind(&DampedLeastSquaresSolver::dynamicReconfigureCallback,
-                                this,
-                                std::placeholders::_1,
-                                std::placeholders::_2);
+    m_callback_type = boost::bind(
+        &DampedLeastSquaresSolver::dynamicReconfigureCallback, this, _1, _2);
 
     m_dyn_conf_server.reset(
         new dynamic_reconfigure::Server<IKConfig>(

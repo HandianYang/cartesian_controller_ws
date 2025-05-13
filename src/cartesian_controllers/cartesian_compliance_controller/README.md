@@ -11,7 +11,7 @@ roslaunch cartesian_controller_examples examples.launch
 2) In another sourced terminal, open rqt and navigate to the *Controller Manager* plugin under *Robot Tools*.
 Select */controller_manager* as namespace and activate *my_cartesian_compliance_controller*.
 
-3) Publish a geometry_msgs/WrenchStamped to */target_wrench* with force x = 10 and watch the robot move.
+3) Publish a geometry_msgs/WrenchStamped to */my_cartesian_compliance_controller/target_wrench* with force x = 10 and watch the robot move.
 
 4) In rqt open the *Dynamic Reconfigure* plugin under *Configuration*. Play a
 little with the parameters of *my_cartesian_compliance_controller* (e.g. stiffness/trans_x) and observe the
@@ -47,20 +47,17 @@ my_cartesian_compliance_controller:
         trans_x: 500
         trans_y: 500
         trans_z: 500
-        rot_x: 20
-        rot_y: 20
-        rot_z: 20
-
-    solver:
-        error_scale: 0.5
+        rot_x: 100
+        rot_y: 100
+        rot_z: 100
 
     pd_gains:
         trans_x: {p: 0.05}
         trans_y: {p: 0.05}
         trans_z: {p: 0.05}
-        rot_x: {p: 1.50}
-        rot_y: {p: 1.50}
-        rot_z: {p: 1.50}
+        rot_x: {p: 0.01}
+        rot_y: {p: 0.01}
+        rot_z: {p: 0.01}
 ```
 
 A minimal example can be found in *cartesian_controller_examples* of this meta package.

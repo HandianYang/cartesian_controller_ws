@@ -23,3 +23,5 @@ A ROS interface for robot controllers bringup for marslite robot.
   ``` -->
 
 **[Tips] To increase the motion speed of robotic arm, increase the value of `error_scale` in `controller_bringup/config/marslite_controllers.yaml`**
+
+[Note] `cartesian_controllers`-related packages depend on `tm_driver` in current ROS workspace rather than that under `/opt/ros/kinetic/share` directory (which I don't know why). **DO NOT remove `tm_driver` from the workspace.**

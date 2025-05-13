@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>controller_bringup</name>
+  <version>1.0.0</version>
+  <description>The package for bringing up robots with cartesian controllers</description>
+  <maintainer email="ych0610765@gmail.com">HandianYang</maintainer>
+  <license>GPL</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+</package>

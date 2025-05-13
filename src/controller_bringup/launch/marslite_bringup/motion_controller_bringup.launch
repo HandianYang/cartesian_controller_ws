@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<launch>
+  <env name="ROSCONSOLE_FORMAT" value="[${severity}] [${node}]: ${message}"/>
+
+  <arg name="output" default="screen"/>
+  <arg name="mob_plat_publish_tf" default="true"/>
+
+  <!-- Techman robot bringup with ros_control -->
+  <include file="$(find controller_bringup)/launch/tm_bringup/tm700_bringup.launch" >
+    <arg name="prefix" default="tm_"/>
+    <arg name="robot_ip" value="195.168.0.5"/>
+    <arg name="limited" default="false"/>
+    <arg name="servo_time" default="0.001"/>
+    <arg name="min_payload" default="0.0"/>
+    <arg name="max_payload" default="5.0"/>
+  </include>
+
+  <!-- mars lite robot model -->
+  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find mars_lite_description)/urdf/mars_lite_with_gripper.urdf.xacro'"/>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="base_footprint_to_base_link" args="0 0 0.1016 0 0 0 base_footprint base_link"/>
+
+  <!-- mobile platform launch file -->
+  <include file="$(find mars_lite_mob_plat)/launch/mobile_platform.launch">
+    <arg name="mob_plat_publish_tf" value="$(arg mob_plat_publish_tf)"/>
+    <arg name="output" value="$(arg output)"/>
+  </include>
+
+  <!-- gripper-->
+  <include file="$(find robotiq_gripper)/launch/robotiq_gripper.launch">
+    <arg name="speed" value="150"/>
+    <arg name="force" value="100"/>
+    <arg name="dev_path" default="$(env ROBOTIQ_GRIPPER_DEV)"/>
+    <arg name="output" default="$(arg output)"/>
+  </include>
+
+  <!-- battery State -->
+  <include file="$(find batt_state)/launch/batt_state.launch">
+    <arg name="output" default="$(arg output)"/>
+  </include>
+    
+  <!-- sensors bringup -->
+  <include file="$(find sensors_bringup)/launch/sensors.launch">
+    <arg name="output" value="$(arg output)"/>
+  </include>
+
+  <!-- Load hardware configuration and cartesian controllers -->
+  <rosparam file="$(find controller_bringup)/config/marslite_controllers.yaml" command="load"/>
+  <rosparam file="$(find controller_bringup)/config/marslite_hw_config.yaml" command="load"/>
+
+  <!-- Load controller_spawner -->
+  <node name="joint_state_controller_spawner" pkg="controller_manager"
+        type="spawner" args="joint_state_controller" respawn="false" output="screen"/>
+  <node name="controller_spawner" pkg="controller_manager" type="spawner"
+        args="marslite_cartesian_motion_controller"/>
+
+</launch>

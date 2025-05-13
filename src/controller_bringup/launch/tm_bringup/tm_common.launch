@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="prefix" default="" />
+  <arg name="robot_ip" />
+  <arg name="servo_time" />
+  <arg name="min_payload" />
+  <arg name="max_payload" />
+  <arg name="max_velocity" default="10.0"/> <!-- [rad/s] -->
+  <arg name="base_frame" default="$(arg prefix)base_link" />
+  <arg name="tool_frame" default="$(arg prefix)tool0_controller" />
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+  <node name="tm_driver" pkg="tm_driver" type="tm_driver" output="screen">
+    <!-- Turn on ros_control for cartesian controllers -->
+    <param name="use_ros_control" type="bool" value="true" />
+    <!-- Map `target_frame` from all cartesian controllers -->
+    <remap from="marslite_motion_control_handle/target_frame" to="target_frame" />
+    <remap from="marslite_cartesian_motion_controller/target_frame" to="target_frame" />
+    <remap from="marslite_cartesian_compliance_controller/target_frame" to="target_frame" />
+    <remap from="marslite_cartesian_force_controller/target_wrench" to="target_wrench" />
+    <remap from="marslite_cartesian_compliance_controller/target_wrench" to="target_wrench" />
+
+    <param name="prefix" type="str" value="$(arg prefix)" />
+    <param name="robot_ip_address" type="str" value="$(arg robot_ip)" />
+    <param name="servo_time" type="double" value="$(arg servo_time)" />
+    <param name="min_payload" type="double" value="$(arg min_payload)" />
+    <param name="max_payload" type="double" value="$(arg max_payload)" />
+    <param name="max_velocity" type="double" value="$(arg max_velocity)" />
+    <param name="base_frame" type="str" value="$(arg base_frame)" />
+    <param name="tool_frame" type="str" value="$(arg tool_frame)" />
+  </node>
+</launch>

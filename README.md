@@ -18,9 +18,6 @@ A ROS interface for robot controllers bringup for marslite robot.
   ```bash
   roslaunch controller_bringup compliance_controller_bringup.launch 
   ```
-<!-- + Teleoperate the robotic arm with `cartesian_motion_controller` using keyboard inputs:
-  ```bash
-  ``` -->
 
 **[Tips] To increase the motion speed of robotic arm, increase the value of `error_scale` in `controller_bringup/config/marslite_controllers.yaml`**
 

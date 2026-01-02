@@ -17,7 +17,9 @@
 
   <!-- mars lite robot model -->
   <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find mars_lite_description)/urdf/mars_lite_with_gripper.urdf.xacro'"/>
-  <node pkg="tf2_ros" type="static_transform_publisher" name="base_footprint_to_base_link" args="0 0 0.1016 0 0 0 base_footprint base_link"/>
+  <node pkg="tf2_ros" type="static_transform_publisher"
+        name="base_footprint_to_base_link"
+        args="0 0 0.1016 0 0 0 base_footprint base_link"/>
 
   <!-- mobile platform launch file -->
   <include file="$(find mars_lite_mob_plat)/launch/mobile_platform.launch">

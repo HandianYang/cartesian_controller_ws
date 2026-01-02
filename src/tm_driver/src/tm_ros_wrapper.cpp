@@ -500,7 +500,7 @@ private:
     struct timespec current_time, last_time;
     ros::Duration elapsed_time;
     
-    clock_gettime(CLOCK_MONOTONIC, &last_time);
+    clock_gettime(CLOCK_REALTIME, &last_time);
     while (ros::ok()) {
 #ifdef USE_BOOST
       boost::mutex msg_lock;
@@ -513,7 +513,7 @@ private:
       while (!robot->interface->stateRT->getDataUpdated()) {
 	msg_condv_rt.wait(locker);
       }
-      clock_gettime(CLOCK_MONOTONIC, &current_time);
+      clock_gettime(CLOCK_REALTIME, &current_time);
       elapsed_time = ros::Duration(current_time.tv_sec - last_time.tv_sec +
 				   (current_time.tv_nsec - last_time.tv_nsec) / BILLION
 				  );

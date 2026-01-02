@@ -10,9 +10,10 @@
   <arg name="tool_frame" default="$(arg prefix)tool0_controller" />
 
   <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+
   <node name="tm_driver" pkg="tm_driver" type="tm_driver" output="screen">
     <!-- Turn on ros_control for cartesian controllers -->
-    <param name="use_ros_control" type="bool" value="true" />
+    <param name="use_ros_control" type="bool" value="True" />
     <!-- Map `target_frame` from all cartesian controllers -->
     <remap from="marslite_motion_control_handle/target_frame" to="target_frame" />
     <remap from="marslite_cartesian_motion_controller/target_frame" to="target_frame" />
